@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Updating...</title>
+<style>
+  body{margin:0;background:#1a365d;color:#fff;font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}
+  .box{padding:24px}
+  .ring{width:54px;height:54px;border:5px solid rgba(212,175,55,.25);border-top-color:#d4af37;border-radius:50%;margin:0 auto 18px;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  h1{font-size:22px;margin:0 0 8px;color:#d4af37;letter-spacing:.4px}
+  p{margin:0;color:#dbe4f0;font-size:15px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="ring"></div>
+  <h1>Loews Security</h1>
+  <p>Updating — back in a few seconds...</p>
+</div>
+<script>
+(function(){
+  var n = 0;
+  function chk(){
+    n++;
+    fetch(location.href, {cache:'no-store'}).then(function(r){
+      if(r.status === 200){ location.reload(); }
+      else if(n < 40){ setTimeout(chk, 3000); }
+    }).catch(function(){ if(n < 40) setTimeout(chk, 3000); });
+  }
+  setTimeout(chk, 2500);
+})();
+</script>
+</body>
+</html>
