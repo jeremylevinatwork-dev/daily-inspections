@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Daily Inspections — Loews Security</title>
+<meta name="theme-color" content="#1a365d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{--gold:#d4af37;--gold-deep:#b8912a;--navy:#1a365d;--navy2:#2d4a7a;--ink:#1c2733;--muted:#6b7a8d;--line:#e2e7ee;--bg:#eef1f6;--card:#fff;--cream:#f7f3e3;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;-webkit-font-smoothing:antialiased;}
+header{flex:0 0 auto;background:linear-gradient(135deg,#0f2440,var(--navy) 55%,var(--navy2));color:#fff;padding:16px 16px 12px;border-bottom:3px solid var(--gold);position:relative;}
+header h1{font-size:21.5px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;}
+header h1 .gold{color:var(--gold);}
+header p{font-size:13.5px;color:#b9c7d8;margin-top:3px;}
+.brand-power{margin-top:9px;font-family:Georgia,'Times New Roman',serif;font-weight:bold;color:var(--gold);font-size:14px;}
+.brand-prod{font-size:12px;color:rgba(255,255,255,.55);margin-top:2px;font-family:inherit;}
+/* month bar */
+#monthbar{flex:0 0 auto;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:10px 12px;box-shadow:0 2px 8px rgba(15,36,64,.05);}
+#monthbar button.nav{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--line);background:#fff;font-size:19px;cursor:pointer;color:var(--navy);font-weight:800;}
+#monthlabel{flex:1;text-align:center;font-size:19px;font-weight:800;color:var(--navy);letter-spacing:.4px;}
+#monthlabel small{display:block;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:1px;text-transform:uppercase;}
+main{flex:1 1 auto;overflow-y:auto;min-height:0;width:100%;max-width:860px;margin:0 auto;padding:14px 12px 20px;}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+.stat{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:12px;padding:10px 6px;text-align:center;box-shadow:0 2px 6px rgba(15,36,64,.05);}
+.stat b{display:block;font-size:23.5px;color:var(--navy);}
+.stat span{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);}
+/* toolbar — horizontal scrolling bar */
+.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;}
+.toolbar::-webkit-scrollbar{display:none;}
+.toolbar>*{flex:0 0 auto;}
+#search{flex:0 0 180px;padding:12px;border:2px solid var(--gold);border-radius:10px;font-size:17px;background:#fff;color:var(--ink);}
+#addbtn{padding:12px 18px;background:linear-gradient(180deg,var(--gold),var(--gold-deep));color:#12263f;border:none;border-radius:10px;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(184,145,42,.35);white-space:nowrap;}
+#printbtn{padding:12px 14px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap;}
+#backupbtn{padding:12px 14px;background:#fff;color:var(--navy);border:2px solid var(--navy);border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap;}
+/* form */
+#formcard{display:none;background:#fff;border:1px solid var(--line);border-top:3px solid var(--gold);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(15,36,64,.08);}
+#formcard.open{display:block;}
+#formcard h3{color:var(--navy);font-size:18px;margin-bottom:10px;}
+.frow{margin-bottom:10px;}
+.frow label{display:block;font-size:12.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--navy);margin-bottom:4px;}
+.frow input,.frow select,.frow textarea{width:100%;padding:11px;border:1.5px solid var(--line);border-radius:9px;font-size:17px;background:#fff;color:var(--ink);font-family:inherit;}
+.frow textarea{resize:vertical;min-height:64px;}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.chips button{border:1.5px solid var(--gold);background:var(--cream);color:var(--navy);border-radius:999px;padding:5px 11px;font-size:13.5px;font-weight:700;cursor:pointer;}
+.fbtns{display:flex;gap:8px;margin-top:4px;}
+.fbtns .save{flex:1;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:800;cursor:pointer;}
+.fbtns .cancel{padding:13px 18px;background:#eef1f6;color:var(--ink);border:1px solid var(--line);border-radius:10px;font-size:17px;font-weight:700;cursor:pointer;}
+/* entries */
+.dayhead{font-size:13.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--navy);margin:16px 0 8px;display:flex;align-items:center;gap:8px;}
+.dayhead::after{content:"";flex:1;height:1px;background:var(--line);}
+.entry{background:#fff;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;padding:12px 14px;margin-bottom:8px;box-shadow:0 2px 6px rgba(15,36,64,.05);}
+.entry .top{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:5px;}
+.pill{font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--navy);color:#fff;}
+.pill.cat{background:var(--cream);color:var(--navy);border:1px solid var(--gold);}
+.pill.hotel{background:#fff;color:var(--navy);border:1.5px solid var(--navy);}
+.entry .who{font-weight:800;color:var(--navy);font-size:15.5px;}
+.entry .area{font-size:14.5px;color:var(--muted);font-weight:600;}
+.entry .equip{font-size:13.5px;font-weight:700;color:#7a5b12;background:#fdf6e0;border:1px solid #ecd27a;border-radius:6px;padding:2px 7px;}
+.entry .notes{font-size:16px;line-height:1.45;margin-top:2px;white-space:pre-wrap;word-wrap:break-word;}
+.entry .acts{margin-top:8px;display:flex;gap:8px;}
+.entry .acts button{border:1px solid var(--line);background:#f6f8fb;color:var(--navy);border-radius:8px;padding:6px 12px;font-size:14px;font-weight:700;cursor:pointer;}
+.entry .acts button.del{color:#b02a2a;}
+.empty{background:#fff;border:1.5px dashed var(--line);border-radius:12px;padding:26px;text-align:center;color:var(--muted);font-size:16px;}
+#gate{display:none;flex:1;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--muted);font-size:17.5px;line-height:1.5;}
+#syncbadge{position:fixed;right:10px;bottom:10px;z-index:60;font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:999px;background:rgba(15,36,64,.82);color:#fff;pointer-events:none;}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:10px;font-size:15.5px;font-weight:700;z-index:99;box-shadow:0 8px 22px rgba(0,0,0,.3);display:none;max-width:92vw;text-align:center;}
+/* print */
+#print-area{display:none;}
+@media print{
+  @page{margin:0.6in;}
+  body{display:block !important;height:auto !important;overflow:visible !important;background:#fff !important;}
+  body>*:not(#print-area){display:none !important;}
+  #print-area{display:block !important;color:#000;font-family:Arial,sans-serif;}
+  #print-area h1{font-size:21.5px;margin:0 0 2px;color:#1a365d;}
+  #print-area h2{font-size:14px;color:#555;font-weight:normal;margin:0 0 12px;}
+  #print-area table{width:100%;border-collapse:collapse;}
+  #print-area th{background:#1a365d;color:#fff;padding:7px 8px;text-align:left;font-size:13.5px;}
+  #print-area td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:13.5px;vertical-align:top;}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Security Property <span class="gold">Daily Inspection</span></h1>
+</header>
+<div id="monthbar">
+  <button class="nav" onclick="shiftMonth(-1)" title="Previous month">&#9664;</button>
+  <div id="monthlabel">October 2026<small>Daily Inspection Log</small></div>
+  <button class="nav" onclick="shiftMonth(1)" title="Next month">&#9654;</button>
+</div>
+<main id="main">
+  <div class="stats" id="stats"></div>
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="Search entries…" autocomplete="off" oninput="render()">
+    <button id="printbtn" onclick="printMonth()">&#128424; Print</button>
+    <button id="xlsbtn" onclick="downloadDoc('xls')">&#128202; Excel</button>
+    <button id="docbtn" onclick="downloadDoc('doc')">&#128196; Word</button>
+    <button id="fulllogbtn" onclick="downloadFullLog()">&#128202; Full Log</button>
+    <button id="backupbtn" onclick="backupAll()">&#128190; Backup</button>
+    <button id="addbtn" onclick="openForm()">+ Add Entry</button>
+  </div>
+  <div id="formcard"></div>
+  <div id="list"></div>
+</main>
+<div id="gate"><div>Please log in through the main <b>Loews Hotels Security Orlando</b> app first,<br>then open the Inspect tab.</div></div>
+<div id="print-area"></div>
+<div id="syncbadge">Loading…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+var SB_URL = 'https://qxqrwusaynfqadjfqswe.supabase.co';
+var SB_KEY = 'sb_publishable_2ba9yzEA89uqXHJ6v-_cQg_AmwwEfFF';
+var TEAM_FULL = ["Jeremy Levin","Alexander Duff","Dominique Black","Sean Forester","Justin Messger"];
+var TEAM_SHORT = ["JEREMY","DUFF","BLACK","FORESTER","MESSENGER"];
+var HOTELS = [
+  ['PBH','Loews Portofino Bay Hotel'],['HRH','Hard Rock Hotel'],['RPR','Loews Royal Pacific Resort'],
+  ['CBBR','Universal Cabana Bay Beach Resort'],['SFR','Loews Sapphire Falls Resort'],['AVH','Universal Aventura Hotel'],
+  ['ESS',"Universal's Endless Summer Resort - Surfside"],['ESD',"Universal's Endless Summer Resort - Dockside"],
+  ['SNR','Universal Stella Nova Resort'],['TLR','Universal Terra Luna Resort'],['HGH','Universal Helios Grand Hotel'],
+  ['LKW','Lakewood'],['ALL','All Campus'],['OTHER','Other']
+];
+var HOTEL_NAME = {}; HOTELS.forEach(function(h){ HOTEL_NAME[h[0]] = h[1]; });
+var CATEGORIES = ['First Aid','First Aid Order','Cameras','Camera Work','Camera Audit','Radios','Radio Batt','Radio Parts','SecurAlert','Fobs','Beacon Audit','QR Codes','Property Inspections','Parking Violations','Prob Cable Cord','Omnigo / EHF','L/F Paperwork','SA','Misc','Other'];
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+var me = null;
+try{
+  if(localStorage.getItem('loewsAuth') === '1'){
+    var u = localStorage.getItem('loewsUser') || '';
+    if(TEAM_FULL.indexOf(u) >= 0) me = u;
+  }
+}catch(e){}
+
+var nowD = new Date();
+var curY = nowD.getFullYear(), curM = nowD.getMonth(); // 0-based
+if(curY < 2026 || (curY === 2026 && curM < 9)){ curY = 2026; curM = 9; } // start at October 2026
+var entries = [];
+var editingId = null;
+var syncTimer = null;
+
+function ym(){ return curY + '-' + String(curM + 1).padStart(2, '0'); }
+function rowId(){ return 'inspections-' + ym(); }
+function lsKey(){ return 'insp-cache-' + ym(); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(function(){ t.style.display = 'none'; }, 2600);
+}
+function badge(txt, ok){
+  var b = document.getElementById('syncbadge');
+  b.textContent = txt;
+  b.style.background = ok === false ? 'rgba(176,42,42,.9)' : 'rgba(15,36,64,.82)';
+}
+function fmtDate(iso){
+  if(!iso) return '';
+  var d = new Date(iso + 'T12:00:00');
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString('en-US', {weekday:'short', month:'numeric', day:'numeric', year:'numeric'});
+}
+function sbHeaders(json){
+  var h = {'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY};
+  if(json) h['Content-Type'] = 'application/json';
+  return h;
+}
+function saveCache(){ try{ localStorage.setItem(lsKey(), JSON.stringify(entries)); }catch(e){} }
+function loadCache(){ try{ entries = JSON.parse(localStorage.getItem(lsKey()) || '[]'); }catch(e){ entries = []; } }
+
+async function pull(){
+  try{
+    var res = await fetch(SB_URL + '/rest/v1/app_records?id=eq.' + encodeURIComponent(rowId()) + '&select=data,updated_at', {headers: sbHeaders(false)});
+    if(!res.ok){ badge('Offline — showing saved copy', false); return; }
+    var rows = await res.json();
+    var cloud = (rows && rows.length && rows[0].data && rows[0].data.entries) ? rows[0].data.entries : [];
+    /* SAFETY: never let an emptier cloud wipe local work — merge by id, local edits win */
+    var byId = {};
+    cloud.forEach(function(e){ byId[e.id] = e; });
+    entries.forEach(function(e){ byId[e.id] = e; });
+    var merged = Object.keys(byId).map(function(k){ return byId[k]; });
+    var changed = merged.length !== entries.length;
+    entries = merged;
+    saveCache();
+    render();
+    badge(changed ? 'Synced ✓' : 'Online ✓', true);
+    if(changed) schedulePush();
+  }catch(e){ badge('Offline — showing saved copy', false); }
+}
+async function pushNow(){
+  try{
+    var res = await fetch(SB_URL + '/rest/v1/app_records', {
+      method: 'POST',
+      headers: Object.assign(sbHeaders(true), {'Prefer': 'resolution=merge-duplicates'}),
+      body: JSON.stringify({id: rowId(), app: 'daily-inspections', data: {entries: entries}})
+    });
+    badge(res.ok ? 'Online ✓' : 'Offline — saved on this device', res.ok);
+  }catch(e){ badge('Offline — saved on this device', false); }
+}
+function schedulePush(){
+  if(syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(pushNow, 1200);
+}
+function loadMonth(){
+  document.getElementById('monthlabel').innerHTML = MONTHS[curM] + ' ' + curY + '<small>Daily Inspection Log</small>';
+  loadCache();
+  render();
+  pull();
+}
+function shiftMonth(d){
+  curM += d;
+  if(curM < 0){ curM = 11; curY--; }
+  if(curM > 11){ curM = 0; curY++; }
+  closeForm();
+  loadMonth();
+}
+
+/* ---------- render ---------- */
+function render(){
+  var q = (document.getElementById('search').value || '').toLowerCase();
+  var list = entries.slice().sort(function(a, b){ return (b.date + b.id).localeCompare(a.date + a.id); });
+  if(q){
+    list = list.filter(function(e){
+      return [e.inspector, e.category, e.hotel, e.area, e.equip, e.notes, (e.file ? e.file.name : '')].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  /* stats (always on the full month, not the search) */
+  var days = {}, hotels = {}, cats = {};
+  entries.forEach(function(e){ days[e.date] = 1; if(e.hotel) hotels[e.hotel] = 1; if(e.category) cats[e.category] = (cats[e.category] || 0) + 1; });
+  var topCat = '—', topN = 0;
+  Object.keys(cats).forEach(function(c){ if(cats[c] > topN){ topN = cats[c]; topCat = c; } });
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><b>' + entries.length + '</b><span>Entries</span></div>'
+    + '<div class="stat"><b>' + Object.keys(days).length + '</b><span>Days logged</span></div>'
+    + '<div class="stat"><b>' + Object.keys(hotels).length + '</b><span>Properties</span></div>'
+    + '<div class="stat"><b style="font-size:16px;padding-top:5px;">' + esc(topCat) + '</b><span>Top category</span></div>';
+  var box = document.getElementById('list');
+  if(!list.length){
+    box.innerHTML = '<div class="empty">' + (q ? 'No entries match your search.' : 'No entries yet for ' + MONTHS[curM] + ' ' + curY + '. Tap <b>+ Add Entry</b> to log the day\'s work.') + '</div>';
+    return;
+  }
+  var h = '', lastDay = '';
+  list.forEach(function(e){
+    if(e.date !== lastDay){ lastDay = e.date; h += '<div class="dayhead">' + esc(fmtDate(e.date)) + '</div>'; }
+    h += '<div class="entry">'
+      + '<div class="top"><span class="who">' + esc(e.inspector || '') + '</span>'
+      + '<span class="pill cat">' + esc(e.category || '') + '</span>'
+      + (e.hotel ? '<span class="pill hotel">' + esc(e.hotel) + '</span>' : '')
+      + (e.area ? '<span class="area">' + esc(e.area) + '</span>' : '')
+      + (e.equip ? '<span class="equip">&#128247; ' + esc(e.equip) + '</span>' : '')
+      + '</div>'
+      + (e.notes ? '<div class="notes">' + esc(e.notes) + '</div>' : '')
+      + (e.file && e.file.data ? inspFileHtml(e.file) : '')
+      + '<div class="acts"><button onclick="openForm(\'' + e.id + '\')">&#9998; Edit</button>'
+      + '<button class="del" onclick="delEntry(\'' + e.id + '\')">&#128465; Delete</button></div>'
+      + '</div>';
+  });
+  box.innerHTML = h;
+}
+
+/* ---------- attachments ---------- */
+var pendingAttach = null;
+function inspFileHtml(f){
+  if(!f || !f.data) return '';
+  if((f.type || '').indexOf('image/') === 0){
+    return '<a href="' + f.data + '" download="' + esc(f.name || 'photo') + '"><img src="' + f.data + '" alt="" style="max-width:100%;max-height:240px;border-radius:8px;display:block;margin-top:6px;"></a>';
+  }
+  return '<div style="margin-top:6px;"><a href="' + f.data + '" download="' + esc(f.name || 'file') + '" style="color:#2b6cb0;font-weight:700;">&#128196; ' + esc(f.name || 'File') + ' &#11015;&#65038;</a></div>';
+}
+function inspFileDispHtml(e){
+  if(pendingAttach === 'REMOVE') return '<span style="color:#9b2c2c;">Attachment will be removed when you save.</span>';
+  if(pendingAttach) return '&#128206; ' + esc(pendingAttach.name || 'File') + ' <span style="color:#718096;">(new \u2014 will save with the entry)</span>';
+  if(e && e.file && e.file.data) return '&#128206; ' + esc(e.file.name || 'File') + ' <button type="button" onclick="inspFileRemove()" style="margin-left:8px;">Remove</button>';
+  return '<span style="color:#718096;">No file attached</span>';
+}
+function inspFileRemove(){
+  pendingAttach = 'REMOVE';
+  var d = document.getElementById('f-filedisp');
+  if(d) d.innerHTML = inspFileDispHtml(null);
+}
+function inspFilePick(input){
+  var file = input.files && input.files[0];
+  if(!file) return;
+  var rd = new FileReader();
+  rd.onload = function(){
+    var dataUrl = rd.result;
+    function done(durl){
+      pendingAttach = {name: file.name, type: file.type || '', data: durl};
+      var d = document.getElementById('f-filedisp');
+      if(d) d.innerHTML = inspFileDispHtml(null);
+      toast('File attached \u2014 save the entry to keep it');
+    }
+    if((file.type || '').indexOf('image/') === 0){
+      var img = new Image();
+      img.onload = function(){
+        try{
+          var max = 1280, w = img.width, h = img.height, s = Math.min(1, max / Math.max(w, h));
+          if(s < 1){
+            var cv = document.createElement('canvas');
+            cv.width = Math.round(w * s); cv.height = Math.round(h * s);
+            var cx = cv.getContext('2d');
+            if(cx){ cx.drawImage(img, 0, 0, cv.width, cv.height); dataUrl = cv.toDataURL('image/jpeg', 0.72); }
+          }
+        }catch(e){}
+        done(dataUrl);
+      };
+      img.onerror = function(){ done(dataUrl); };
+      img.src = dataUrl;
+    } else {
+      if(file.size > 1.5 * 1024 * 1024){ toast('That file is too big \u2014 max about 1.5 MB'); return; }
+      done(dataUrl);
+    }
+  };
+  rd.readAsDataURL(file);
+}
+
+
+/* ---------- form ---------- */
+function hotelOptions(sel){
+  return HOTELS.map(function(h){ return '<option value="' + h[0] + '"' + (sel === h[0] ? ' selected' : '') + '>' + h[0] + ' — ' + esc(h[1]) + '</option>'; }).join('');
+}
+function catOptions(sel){
+  return CATEGORIES.map(function(c){ return '<option' + (sel === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('');
+}
+function todayStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function openForm(id){
+  editingId = id || null;
+  pendingAttach = null;
+  var e = id ? entries.find(function(x){ return x.id === id; }) : null;
+  var fc = document.getElementById('formcard');
+  fc.innerHTML = '<h3>' + (e ? 'Edit entry' : 'New inspection entry') + '</h3>'
+    + '<div class="f2"><div class="frow"><label>Date</label><input id="f-date" type="date" value="' + esc(e ? e.date : todayStr()) + '"></div>'
+    + '<div class="frow"><label>Category</label><select id="f-cat">' + catOptions(e ? e.category : 'Property Inspections') + '</select></div></div>'
+    + '<div class="frow"><label>Inspector(s)</label><input id="f-insp" type="text" placeholder="e.g. DUFF/JEREMY" value="' + esc(e ? e.inspector : '') + '">'
+    + '<div class="chips">' + TEAM_SHORT.map(function(n){ return '<button type="button" onclick="addInsp(\'' + n + '\')">+ ' + n + '</button>'; }).join('') + '</div></div>'
+    + '<div class="f2"><div class="frow"><label>Hotel / Property</label><select id="f-hotel">' + hotelOptions(e ? e.hotel : 'CBBR') + '</select></div>'
+    + '<div class="frow"><label>Equipment ID (optional)</label><input id="f-equip" type="text" placeholder="e.g. C04R05" value="' + esc(e ? (e.equip || '') : '') + '"></div></div>'
+    + '<div class="frow"><label>Location / Area</label><input id="f-area" type="text" placeholder="e.g. Loading Dock, Game Room, HSKP" value="' + esc(e ? (e.area || '') : '') + '"></div>'
+    + '<div class="frow"><label>Work performed / Notes</label><textarea id="f-notes" placeholder="What was inspected or done…">' + esc(e ? (e.notes || '') : '') + '</textarea></div>'
+    + '<div class="frow"><label>Photo or file</label><input id="f-file" type="file" accept="image/*,.pdf,.doc,.docx" onchange="inspFilePick(this)"><div id="f-filedisp" style="margin-top:6px;font-size:14px;">' + inspFileDispHtml(e) + '</div></div>'
+    + '<div class="fbtns"><button class="cancel" onclick="closeForm()">Cancel</button><button class="save" onclick="saveEntry()">' + (e ? 'Save changes' : 'Save entry') + '</button></div>';
+  fc.classList.add('open');
+  fc.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function addInsp(n){
+  var inp = document.getElementById('f-insp');
+  var cur = inp.value.trim();
+  var parts = cur ? cur.split('/').map(function(s){ return s.trim(); }) : [];
+  if(parts.indexOf(n) < 0) parts.push(n);
+  inp.value = parts.join('/');
+}
+function closeForm(){
+  editingId = null;
+  var fc = document.getElementById('formcard');
+  fc.classList.remove('open');
+  fc.innerHTML = '';
+}
+function saveEntry(){
+  var date = document.getElementById('f-date').value;
+  var insp = document.getElementById('f-insp').value.trim();
+  if(!date){ toast('Pick a date'); return; }
+  if(!insp){ toast('Add the inspector'); return; }
+  var data = {
+    date: date,
+    inspector: insp.toUpperCase(),
+    category: document.getElementById('f-cat').value,
+    hotel: document.getElementById('f-hotel').value,
+    area: document.getElementById('f-area').value.trim(),
+    equip: document.getElementById('f-equip').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    by: me || ''
+  };
+  if(editingId){
+    var old = entries.find(function(x){ return x.id === editingId; });
+    if(old) Object.assign(old, data);
+    toast('Entry updated');
+  } else {
+    data.id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    data.ts = new Date().toISOString();
+    entries.push(data);
+    toast('Entry saved');
+  }
+  var savedE = editingId ? entries.find(function(x){ return x.id === editingId; }) : data;
+  if(pendingAttach === 'REMOVE'){ if(savedE) savedE.file = null; }
+  else if(pendingAttach){ if(savedE) savedE.file = pendingAttach; }
+  /* if the entry belongs to another month, jump to it */
+  var ey = Number(date.slice(0, 4)), em = Number(date.slice(5, 7)) - 1;
+  saveCache();
+  schedulePush();
+  closeForm();
+  if(ey !== curY || em !== curM){ curY = ey; curM = em; loadMonth(); }
+  else render();
+}
+function delEntry(id){
+  var e = entries.find(function(x){ return x.id === id; });
+  if(!e) return;
+  if(!confirm('Delete this entry?\n\n' + e.date + ' — ' + (e.inspector || '') + ' — ' + (e.category || '') + '\n' + (e.notes || ''))) return;
+  entries = entries.filter(function(x){ return x.id !== id; });
+  saveCache();
+  schedulePush();
+  render();
+  toast('Entry deleted');
+}
+
+/* ---------- print ---------- */
+/* ---------- minimal real-.xlsx writer (stored zip, inline strings) ---------- */
+function _crcTable(){ if(!_crcTable.t){ _crcTable.t=[]; for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); _crcTable.t[n]=c>>>0; } } return _crcTable.t; }
+function _crc32(bytes){ var t=_crcTable(), c=0xFFFFFFFF; for(var i=0;i<bytes.length;i++) c=t[(c^bytes[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function _zipStore(files){
+  function u16(n){ return [n&0xFF,(n>>8)&0xFF]; }
+  function u32(n){ return [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF]; }
+  var enc=new TextEncoder(), chunks=[], central=[], offset=0;
+  files.forEach(function(f){
+    var name=enc.encode(f.name), data=f.data, c=_crc32(data);
+    var lh=new Uint8Array([].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),u32(c),u32(data.length),u32(data.length),u16(name.length),u16(0)));
+    chunks.push(lh,name,data);
+    var ch=new Uint8Array([].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),u32(c),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset)));
+    central.push(ch,name);
+    offset += lh.length + name.length + data.length;
+  });
+  var cdSize=central.reduce(function(s,x){ return s+x.length; },0);
+  var eocd=new Uint8Array([].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(cdSize),u32(offset),u16(0)));
+  return new Blob(chunks.concat(central,[eocd]), {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+function _colName(i){ var s=''; i++; while(i>0){ var m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
+function _xclean(v){ return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ''); }
+function makeXlsx(rowsData){
+  var enc=new TextEncoder();
+  function f(name, text){ return {name:name, data:enc.encode(text)}; }
+  var ssMap={}, ssList=[], ssCount=0;
+  function ssIdx(v){ ssCount++; var s=_xclean(v); if(!(s in ssMap)){ ssMap[s]=ssList.length; ssList.push(s); } return ssMap[s]; }
+  var maxCol=0, maxRow=0;
+  var sheetRows = rowsData.map(function(rd){
+    if(rd.n > maxRow) maxRow = rd.n;
+    if(rd.cells.length > maxCol) maxCol = rd.cells.length;
+    var COLW = [13, 16, 18, 24, 24, 18, 95];
+    var cs = rd.cells.map(function(v, i){
+      var ref = _colName(i) + rd.n;
+      if(v == null || v === '') return '<c r="' + ref + '"' + (rd.hdr ? ' s="1"' : ' s="2"') + '/>';
+      return '<c r="' + ref + '" t="s"' + (rd.hdr ? ' s="1"' : ' s="2"') + '><v>' + ssIdx(v) + '</v></c>';
+    }).join('');
+    var lines = 1;
+    rd.cells.forEach(function(v, i){ if(v) lines = Math.max(lines, Math.ceil(String(v).length / Math.max(8, (COLW[i] || 12) - 1))); });
+    var ht = lines > 1 ? ' ht="' + Math.min(160, lines * 13.6) + '" customHeight="1"' : '';
+    return '<row r="' + rd.n + '"' + ht + '>' + cs + '</row>';
+  }).join('');
+  var dim = 'A1:' + _colName(maxCol - 1) + maxRow;
+  var sst = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' + ssCount + '" uniqueCount="' + ssList.length + '">' + ssList.map(function(s){ return '<si><t>' + esc(s) + '</t></si>'; }).join('') + '</sst>';
+  var merges = '';
+  (function(){
+    var singles = rowsData.filter(function(rd){ return rd.cells.length === 1 && rd.cells[0]; });
+    if(singles.length && maxCol >= 7) merges = '<mergeCells count="' + singles.length + '">' + singles.map(function(rd){ return '<mergeCell ref="A' + rd.n + ':G' + rd.n + '"/>'; }).join('') + '</mergeCells>';
+  })();
+  var files=[
+    f('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>'),
+    f('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'),
+    f('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Inspection Log" sheetId="1" r:id="rId1"/></sheets></workbook>'),
+    f('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>'),
+    f('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1A365D"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment wrapText="1" vertical="top"/></xf></cellXfs></styleSheet>'),
+    f('xl/sharedStrings.xml', sst),
+    f('xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="' + dim + '"/><cols><col min="1" max="1" width="13" customWidth="1"/><col min="2" max="2" width="16" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="24" customWidth="1"/><col min="5" max="5" width="24" customWidth="1"/><col min="6" max="6" width="18" customWidth="1"/><col min="7" max="7" width="95" customWidth="1"/></cols><sheetData>' + sheetRows + '</sheetData>' + merges + '</worksheet>')
+  ];
+  return _zipStore(files);
+}
+function sortedEntries(){ return entries.slice().sort(function(a, b){ return ((a.date || '') + a.id).localeCompare((b.date || '') + b.id); }); }
+function entryCells(e){ return [e.date || '', e.inspector || '', e.category || '', e.hotel || '', e.area || '', e.equip || '', e.notes || '']; }
+var XHEAD = ['Date', 'Inspector', 'Category', 'Hotel', 'Location / Area', 'Equipment ID', 'Work Performed'];
+
+function formInner(){
+  var list = entries.slice().sort(function(a, b){ return (a.date + a.id).localeCompare(b.date + b.id); });
+  var rows = list.map(function(e){
+    return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.inspector || '') + '</td><td>' + esc(e.category || '') + '</td><td>' + esc(e.hotel || '') + '</td><td>' + esc(e.area || '') + '</td><td>' + esc(e.equip || '') + '</td><td>' + esc(e.notes || '') + '</td></tr>';
+  }).join('');
+  return '<h1>Security Property Daily Inspection — ' + MONTHS[curM] + ' ' + curY + '</h1>'
+    + '<h2>Loews Hotels Security Orlando &bull; ' + list.length + ' entries &bull; Produced ' + new Date().toLocaleString() + ' by ' + esc(me || '') + '</h2>'
+    + '<table><tr><th>Date</th><th>Inspector</th><th>Category</th><th>Hotel</th><th>Location / Area</th><th>Equipment ID</th><th>Work Performed</th></tr>'
+    + (rows || '<tr><td colspan="7">No entries this month.</td></tr>') + '</table>'
+    + '<p style="margin-top:26px;font-size:13.5px;">Inspector signature: ______________________________ &nbsp; Date: ______________ &nbsp;&nbsp;&nbsp; Manager signature: ______________________________ &nbsp; Date: ______________</p>'
+    + '<p style="margin-top:12px;font-size:12.5px;color:#555;">Power by: NDL systems tech &bull; Produced by: JHNL Security Tech</p>';
+}
+function printMonth(){
+  document.getElementById('print-area').innerHTML = formInner();
+  window.print();
+}
+function formDocHtml(){
+  return '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8">'
+    + '<title>Security Property Daily Inspection — ' + MONTHS[curM] + ' ' + curY + '</title>'
+    + '<style>body{font-family:Arial,sans-serif;} h1{font-size:21.5px;color:#1a365d;margin:0 0 2px;} h2{font-size:14px;color:#555;font-weight:normal;margin:0 0 12px;} table{width:100%;border-collapse:collapse;} th{background:#1a365d;color:#ffffff;padding:7px 8px;text-align:left;font-size:13.5px;border:1px solid #444444;} td{padding:6px 8px;font-size:13.5px;border:1px solid #444444;vertical-align:top;}</style>'
+    + '</head><body>' + formInner() + '</body></html>';
+}
+function idbGetH(key){
+  return new Promise(function(res){
+    try{
+      var rq = indexedDB.open('insp-fs', 1);
+      rq.onupgradeneeded = function(){ try{ rq.result.createObjectStore('h'); }catch(e){} };
+      rq.onsuccess = function(){ try{ var g = rq.result.transaction('h').objectStore('h').get(key); g.onsuccess = function(){ res(g.result || null); }; g.onerror = function(){ res(null); }; }catch(e){ res(null); } };
+      rq.onerror = function(){ res(null); };
+    }catch(e){ res(null); }
+  });
+}
+function idbSetH(key, val){
+  try{
+    var rq = indexedDB.open('insp-fs', 1);
+    rq.onupgradeneeded = function(){ try{ rq.result.createObjectStore('h'); }catch(e){} };
+    rq.onsuccess = function(){ try{ rq.result.transaction('h', 'readwrite').objectStore('h').put(val, key); }catch(e){} };
+  }catch(e){}
+}
+/* Pick (first time) or reuse (every time after) the ONE file the Excel buttons keep updating. Desktop Edge/Chrome only. */
+async function pickExcelFile(kind, suggested){
+  if(!window.showSaveFilePicker) return null;
+  var key = 'xlsx-' + kind;
+  var h = await idbGetH(key);
+  if(h){
+    try{
+      var perm = await h.queryPermission({mode: 'readwrite'});
+      if(perm !== 'granted') perm = await h.requestPermission({mode: 'readwrite'});
+      if(perm === 'granted') return h;
+    }catch(e){}
+  }
+  try{
+    h = await window.showSaveFilePicker({ suggestedName: suggested, types: [{ description: 'Excel workbook', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
+  }catch(e){ return null; }
+  if(h) idbSetH(key, h);
+  return h;
+}
+async function saveExcelBlob(blob, handlePromise, filename, toastMsg){
+  var h = null;
+  try{ h = await handlePromise; }catch(e){}
+  if(h){
+    try{
+      var wr = await h.createWritable();
+      await wr.write(blob);
+      await wr.close();
+      toast(toastMsg + ' — your file was updated');
+      return;
+    }catch(e){}
+  }
+  downloadBlob(blob, filename, toastMsg);
+}
+function downloadBlob(blob, filename, toastMsg){
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  toast(toastMsg);
+}
+async function downloadDoc(kind){
+  if(kind === 'xls'){
+    toast('Building the full Excel form…');
+    var hp = pickExcelFile('form', 'inspection-form-full-log.xlsx');
+    var list = await fetchAllEntries();
+    var rows = [{n:1, cells:['Security Property Daily Inspection Log']}, {n:2, cells:['Loews Hotels Security Orlando • All entries accumulated • ' + list.length + ' entries • Produced ' + new Date().toLocaleString() + ' by ' + (me || '')]}, {n:3, cells:[]}, {n:4, cells:XHEAD, hdr:true}];
+    list.forEach(function(e, i){ rows.push({n:5 + i, cells:entryCells(e)}); });
+    return saveExcelBlob(makeXlsx(rows), hp, 'inspection-form-full-log.xlsx', 'Excel form saved — the whole log, ' + list.length + ' entries');
+  }
+  var blob = new Blob(['\ufeff' + formDocHtml()], {type: 'application/msword'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inspections-' + ym() + '.doc';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  toast(isXls ? 'Excel sheet downloaded — open it in Excel' : 'Word document downloaded — open it in Word');
+}
+
+async function fetchAllEntries(){
+  var byId = {};
+  try{
+    var res = await fetch(SB_URL + '/rest/v1/app_records?select=id,data&id=like.inspections-%25', {headers: sbHeaders(false)});
+    var rows = res.ok ? await res.json() : [];
+    (rows || []).forEach(function(r){ ((r.data && r.data.entries) || []).forEach(function(e){ byId[e.id] = e; }); });
+  }catch(e){}
+  entries.forEach(function(e){ byId[e.id] = e; });
+  return Object.keys(byId).map(function(k){ return byId[k]; }).sort(function(a, b){ return ((a.date || '') + a.id).localeCompare((b.date || '') + b.id); });
+}
+async function downloadFullLog(){
+  toast('Preparing full log…');
+  var hp = pickExcelFile('fulllog', 'inspection-log-full.xlsx');
+  try{
+    var all = await fetchAllEntries();
+    var rows = [{n:1, cells:XHEAD, hdr:true}];
+    all.forEach(function(e, i){ rows.push({n:2 + i, cells:entryCells(e)}); });
+    await saveExcelBlob(makeXlsx(rows), hp, 'inspection-log-full.xlsx', 'Full log saved — ' + all.length + ' entries, the whole log in one file');
+  }catch(e){
+    toast('Full log failed — check connection');
+  }
+}
+
+/* ---------- backup ---------- */
+async function backupAll(){
+  toast('Preparing backup…');
+  try{
+    var res = await fetch(SB_URL + '/rest/v1/app_records?select=id,data&id=like.inspections-%25', {headers: sbHeaders(false)});
+    var rows = res.ok ? await res.json() : [];
+    var all = {};
+    (rows || []).forEach(function(r){ all[r.id] = (r.data && r.data.entries) || []; });
+    if(!all[rowId()]) all[rowId()] = entries;
+    else {
+      var byId = {};
+      all[rowId()].forEach(function(e){ byId[e.id] = e; });
+      entries.forEach(function(e){ byId[e.id] = e; });
+      all[rowId()] = Object.keys(byId).map(function(k){ return byId[k]; });
+    }
+    var total = Object.keys(all).reduce(function(n, k){ return n + all[k].length; }, 0);
+    var payload = {app: 'daily-inspections', exportedAt: new Date().toISOString(), exportedBy: me || '', totalEntries: total, months: all};
+    var blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'inspections-backup-' + todayStr() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 800);
+    toast('Backup downloaded — ' + total + ' entries');
+  }catch(e){
+    toast('Backup failed — check connection');
+  }
+}
+
+/* ---------- boot ---------- */
+if(!me){
+  document.getElementById('main').style.display = 'none';
+  document.getElementById('monthbar').style.display = 'none';
+  document.getElementById('gate').style.display = 'flex';
+  badge('Not logged in', false);
+} else {
+  loadMonth();
+  setInterval(pull, 30000);
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) pull(); });
+}
+</script>
+</body>
+</html>
