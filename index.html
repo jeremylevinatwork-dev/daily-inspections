@@ -273,7 +273,7 @@ function shiftMonth(d){
 /* ---------- render ---------- */
 function render(){
   var q = (document.getElementById('search').value || '').toLowerCase();
-  var list = entries.filter(entryVisible).slice().sort(function(a, b){ return (b.date + b.id).localeCompare(a.date + a.id); });
+  var list = entries.slice().sort(function(a, b){ return (b.date + b.id).localeCompare(a.date + a.id); });
   if(q){
     list = list.filter(function(e){
       return [e.inspector, e.category, e.hotel, e.area, e.equip, e.notes, (e.file ? e.file.name : '')].join(' ').toLowerCase().indexOf(q) >= 0;
@@ -281,13 +281,11 @@ function render(){
   }
   /* stats (always on the full month, not the search) */
   var days = {}, hotels = {}, cats = {};
-  var visEntries = entries.filter(entryVisible);
-  visEntries.forEach(function(e){ days[e.date] = 1; if(e.hotel) hotels[e.hotel] = 1; if(e.category) cats[e.category] = (cats[e.category] || 0) + 1; });
+  entries.forEach(function(e){ days[e.date] = 1; if(e.hotel) hotels[e.hotel] = 1; if(e.category) cats[e.category] = (cats[e.category] || 0) + 1; });
   var topCat = '—', topN = 0;
   Object.keys(cats).forEach(function(c){ if(cats[c] > topN){ topN = cats[c]; topCat = c; } });
   document.getElementById('stats').innerHTML =
-    '<div class="stat"><b>' + visEntries.length + '</b><span>Entries</span></div>'
-    + (isInspAdmin() && entries.some(function(e){ return e.pending; }) ? '<div class="stat" style="background:#fff5eb;border:1.5px solid #dd6b20;"><b style="color:#9c4221">' + entries.filter(function(e){ return e.pending; }).length + '</b><span>Waiting approval</span></div>' : '')
+    '<div class="stat"><b>' + entries.length + '</b><span>Entries</span></div>'
     + '<div class="stat"><b>' + Object.keys(days).length + '</b><span>Days logged</span></div>'
     + '<div class="stat"><b>' + Object.keys(hotels).length + '</b><span>Properties</span></div>'
     + '<div class="stat"><b style="font-size:16px;padding-top:5px;">' + esc(topCat) + '</b><span>Top category</span></div>';
@@ -300,7 +298,6 @@ function render(){
   list.forEach(function(e){
     if(e.date !== lastDay){ lastDay = e.date; h += '<div class="dayhead">' + esc(fmtDate(e.date)) + '</div>'; }
     h += '<div class="entry">'
-      + (e.pending ? pendBarHtml(e) : '')
       + '<div class="top"><span class="who">' + esc(e.inspector || '') + '</span>'
       + '<span class="pill cat">' + esc(e.category || '') + '</span>'
       + (e.hotel ? '<span class="pill hotel">' + esc(e.hotel) + '</span>' : '')
@@ -610,24 +607,6 @@ function closeForm(){
   fc.classList.remove('open');
   fc.innerHTML = '';
 }
-function isInspAdmin(){ return me === 'Jeremy Levin'; }
-function entryVisible(e){ if(!e.pending) return true; return isInspAdmin() || e.by === me; }
-function pendBarHtml(e){
-  if(isInspAdmin()){
-    return '<div style="background:#fff5eb;border:1.5px solid #dd6b20;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13.5px;color:#9c4221"><b>\u23F3 Waiting for your approval</b> \u2014 submitted by ' + esc(e.by || '') + '<div style="display:flex;gap:8px;margin-top:6px"><button type="button" onclick="approveEntry(\'' + e.id + '\')" style="padding:7px 14px;background:#d4af37;color:#12263f;border:none;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;">\u2713 Approve</button><button type="button" onclick="dismissEntry(\'' + e.id + '\')" style="padding:7px 14px;background:#fff;color:#9c4221;border:1.5px solid #dd6b20;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;">Dismiss</button></div></div>';
-  }
-  return '<div style="background:#fff5eb;border:1.5px solid #dd6b20;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13.5px;color:#9c4221">\u23F3 Waiting for Jeremy\u2019s approval \u2014 it counts once he approves it</div>';
-}
-function approveEntry(id){
-  var e = entries.find(function(x){ return x.id === id; }); if(!e) return;
-  delete e.pending; e.approvedBy = me;
-  saveCache(); schedulePush(); render(); toast('Entry approved \u2014 it counts now');
-}
-function dismissEntry(id){
-  if(!confirm('Dismiss this entry? It will be deleted and never counted.')) return;
-  entries = entries.filter(function(x){ return x.id !== id; });
-  saveCache(); schedulePush(); render(); toast('Entry dismissed');
-}
 function saveEntry(){
   var date = document.getElementById('f-date').value;
   var insp = document.getElementById('f-insp').value.trim();
@@ -645,14 +624,13 @@ function saveEntry(){
   };
   if(editingId){
     var old = entries.find(function(x){ return x.id === editingId; });
-    if(old){ Object.assign(old, data); if(isInspAdmin()){ delete old.pending; } else { old.pending = 1; } }
-    toast(isInspAdmin() ? 'Entry updated' : 'Sent to Jeremy for approval');
+    if(old) Object.assign(old, data);
+    toast('Entry updated');
   } else {
     data.id = 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     data.ts = new Date().toISOString();
-    if(!isInspAdmin()) data.pending = 1;
     entries.push(data);
-    toast(isInspAdmin() ? 'Entry saved' : 'Sent to Jeremy for approval \u2014 it counts once he approves it');
+    toast('Entry saved');
   }
   var savedE = editingId ? entries.find(function(x){ return x.id === editingId; }) : data;
   if(pendingAttach === 'REMOVE'){ if(savedE) savedE.file = null; }
@@ -738,12 +716,12 @@ function makeXlsx(rowsData){
   ];
   return _zipStore(files);
 }
-function sortedEntries(){ return entries.filter(function(e){ return !e.pending; }).slice().sort(function(a, b){ return ((a.date || '') + a.id).localeCompare((b.date || '') + b.id); }); }
+function sortedEntries(){ return entries.slice().sort(function(a, b){ return ((a.date || '') + a.id).localeCompare((b.date || '') + b.id); }); }
 function entryCells(e){ return [e.date || '', e.inspector || '', e.category || '', e.hotel || '', e.area || '', e.equip || '', e.notes || '']; }
 var XHEAD = ['Date', 'Inspector', 'Category', 'Hotel', 'Location / Area', 'Equipment ID', 'Work Performed'];
 
 function formInner(){
-  var list = entries.filter(function(e){ return !e.pending; }).slice().sort(function(a, b){ return (a.date + a.id).localeCompare(b.date + b.id); });
+  var list = entries.slice().sort(function(a, b){ return (a.date + a.id).localeCompare(b.date + b.id); });
   var rows = list.map(function(e){
     return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.inspector || '') + '</td><td>' + esc(e.category || '') + '</td><td>' + esc(e.hotel || '') + '</td><td>' + esc(e.area || '') + '</td><td>' + esc(e.equip || '') + '</td><td>' + esc(e.notes || '') + (e.penImg ? '<br><img src="' + e.penImg + '" style="max-width:300px;margin-top:4px;">' : '') + '</td></tr>';
   }).join('');
@@ -925,7 +903,7 @@ if(!me){
   /* Ask the parent portal for the login directly — inside the app this frame
      cannot read the portal's storage, so the portal answers by message.
      The readout on the gate shows exactly what this copy received. */
-  var INSP_BUILD = 'insp-20261028-1145';
+  var INSP_BUILD = 'insp-20261024-1153';
   var hasU = /[?&]u=/.test(location.search || '');
   var savedU = ''; try{ savedU = localStorage.getItem('loewsUser') || ''; }catch(e){}
   var legs = 'Build ' + INSP_BUILD + ' · address login: ' + (hasU ? 'yes' : 'no') + ' · saved login: ' + (savedU ? 'yes' : 'no');
