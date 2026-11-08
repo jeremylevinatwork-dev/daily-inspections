@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="insp-20261029-1517">
+<html lang="en" data-build="insp-20261108-1015">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -173,6 +173,7 @@ var nowD = new Date();
 var curY = nowD.getFullYear(), curM = nowD.getMonth(); // 0-based
 if(curY < 2026 || (curY === 2026 && curM < 9)){ curY = 2026; curM = 9; } // start at October 2026
 var entries = [];
+var holds = [];
 var editingId = null;
 var syncTimer = null;
 var inspStamp = {row: null, ts: null}; // egress gate: last cloud stamp seen/written for the open month
@@ -238,6 +239,127 @@ function sbHeaders(json){
   if(json) h['Content-Type'] = 'application/json';
   return h;
 }
+
+// --- Photo externalization (egress shrink, 2026-11-08) + Duff photo hold ---
+var PHOTO_CACHE = {};
+function isPhotoRef(v){ return typeof v === 'string' && v.indexOf('photoref:') === 0; }
+function fileImgAttr(f){ return isPhotoRef(f.data) ? ('data-photoref="' + f.data + '" src=""') : ('src="' + f.data + '"'); }
+function fileLinkAttr(f){ return isPhotoRef(f.data) ? ('data-photoref="' + f.data + '" href="#"') : ('href="' + f.data + '"'); }
+function penImgAttr(v){ return isPhotoRef(v) ? ('data-photoref="' + v + '" src=""') : ('src="' + v + '"'); }
+async function photoPut(dataUrl){
+  try{
+    var pid = 'photo-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    var res = await fetch(SB_URL + '/rest/v1/app_records', {method: 'POST', headers: Object.assign(sbHeaders(true), {'Prefer': 'resolution=merge-duplicates'}), body: JSON.stringify({id: pid, app: 'daily-inspections', data: {blob: dataUrl}})});
+    if(!res.ok) return null;
+    return 'photoref:' + pid;
+  }catch(e){ return null; }
+}
+async function photoGet(ref){
+  var pid = String(ref).slice(9);
+  if(PHOTO_CACHE[pid]) return PHOTO_CACHE[pid];
+  try{
+    var res = await fetch(SB_URL + '/rest/v1/app_records?id=eq.' + encodeURIComponent(pid) + '&select=data', {headers: sbHeaders(false)});
+    if(!res.ok) return null;
+    var rows = await res.json();
+    var blob = rows && rows[0] && rows[0].data && rows[0].data.blob;
+    if(blob) PHOTO_CACHE[pid] = blob;
+    return blob || null;
+  }catch(e){ return null; }
+}
+function hydratePhotos(){
+  try{
+    document.querySelectorAll('img[data-photoref],a[data-photoref]').forEach(function(el){
+      if(el.getAttribute('data-hydrated')) return;
+      el.setAttribute('data-hydrated', '1');
+      photoGet(el.getAttribute('data-photoref')).then(function(u){ if(u){ if(el.tagName === 'IMG') el.src = u; else el.href = u; } });
+    });
+  }catch(e){}
+}
+try{ new MutationObserver(function(){ hydratePhotos(); }).observe(document.documentElement, {childList: true, subtree: true}); }catch(e){}
+async function externalizeInspPhotos(list){
+  if(!Array.isArray(list)) return;
+  for(var i = 0; i < list.length; i++){
+    var e = list[i];
+    if(!e) continue;
+    if(e.file && typeof e.file.data === 'string' && e.file.data.indexOf('data:') === 0){
+      var r1 = await photoPut(e.file.data);
+      if(r1) e.file.data = r1;
+    }
+    if(typeof e.penImg === 'string' && e.penImg.indexOf('data:') === 0){
+      var r2 = await photoPut(e.penImg);
+      if(r2) e.penImg = r2;
+    }
+  }
+}
+function localHeldFile(eid){
+  try{ var m = JSON.parse(localStorage.getItem('insp-held-files') || '{}'); return m[eid] || null; }catch(e){ return null; }
+}
+function stashLocalFile(eid, file){
+  try{ var m = JSON.parse(localStorage.getItem('insp-held-files') || '{}'); m[eid] = file; localStorage.setItem('insp-held-files', JSON.stringify(m)); }catch(e){}
+}
+function clearLocalFile(eid){
+  try{ var m = JSON.parse(localStorage.getItem('insp-held-files') || '{}'); delete m[eid]; localStorage.setItem('insp-held-files', JSON.stringify(m)); }catch(e){}
+}
+function markUnheld(eid){
+  try{ var a = JSON.parse(localStorage.getItem('insp-unheld') || '[]'); if(a.indexOf(eid) < 0) a.push(eid); localStorage.setItem('insp-unheld', JSON.stringify(a)); }catch(e){}
+}
+async function syncPhotoHolds(){
+  var m = {};
+  try{ m = JSON.parse(localStorage.getItem('insp-held-files') || '{}'); }catch(e){}
+  var ids = Object.keys(m);
+  for(var i = 0; i < ids.length; i++){
+    var lf = m[ids[i]];
+    if(lf && typeof lf.data === 'string' && lf.data.indexOf('data:') === 0){
+      var ref = await photoPut(lf.data);
+      if(ref) lf.data = ref;
+    }
+  }
+  try{ localStorage.setItem('insp-held-files', JSON.stringify(m)); }catch(e){}
+  ids.forEach(function(eid){
+    var ent = entries.find(function(x){ return x.id === eid; });
+    if(!ent) return;
+    if(ent.file && ent.file.data) return;
+    if(!holds.some(function(h){ return h.entryId === eid; })){
+      holds.push({entryId: eid, file: m[eid], by: ent.by || '', ts: Date.now(), date: ent.date || '', hotel: ent.hotel || '', inspector: ent.inspector || ''});
+    }
+  });
+  var un = [];
+  try{ un = JSON.parse(localStorage.getItem('insp-unheld') || '[]'); }catch(e){}
+  if(un.length){
+    holds = holds.filter(function(h){ return un.indexOf(h.entryId) < 0; });
+    try{ localStorage.removeItem('insp-unheld'); }catch(e){}
+  }
+}
+function inspEntryFileHtml(e){
+  if(e.file && e.file.data) return inspFileHtml(e.file);
+  var lf = localHeldFile(e.id);
+  return lf ? inspFileHtml(lf) : '';
+}
+function holdsCardHtml(){
+  if(me !== 'Jeremy Levin' || !holds.length) return '';
+  var h = '<div style="background:#fff8e1;border:2px solid #d4af37;border-radius:10px;padding:12px;margin-bottom:12px;">'
+    + '<div style="font-weight:800;color:#1a365d;margin-bottom:8px;">&#128247; Photos waiting (' + holds.length + ')</div>';
+  holds.forEach(function(hd){
+    h += '<div style="display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid #e2d9b8;border-radius:8px;padding:8px;margin-bottom:8px;">'
+      + '<div style="flex:0 0 84px;overflow:hidden;">' + (hd.file ? inspFileHtml(hd.file) : '') + '</div>'
+      + '<div style="flex:1;font-size:13.5px;color:#2d3748;">' + esc(hd.date || '') + ' &middot; ' + esc(hd.hotel || '') + '<br>' + esc(hd.inspector || hd.by || '') + '<br>' + esc((hd.file && hd.file.name) || 'photo')
+      + '<div style="margin-top:6px;"><button type="button" onclick="approveHold(\'' + hd.entryId + '\')" style="padding:7px 14px;background:#2f855a;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Approve</button> '
+      + '<button type="button" onclick="dismissHold(\'' + hd.entryId + '\')" style="padding:7px 14px;background:#c53030;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">Dismiss</button></div></div></div>';
+  });
+  return h + '</div>';
+}
+function approveHold(eid){
+  var hd = holds.find(function(x){ return x.entryId === eid; });
+  if(!hd) return;
+  var ent = entries.find(function(x){ return x.id === eid; });
+  if(ent && hd.file){ ent.file = hd.file; ent.mts = Date.now(); ent._dirty = 1; }
+  holds = holds.filter(function(x){ return x.entryId !== eid; });
+  saveCache(); schedulePush(); render();
+}
+function dismissHold(eid){
+  holds = holds.filter(function(x){ return x.entryId !== eid; });
+  schedulePush(); render();
+}
 function saveCache(){ try{ localStorage.setItem(lsKey(), JSON.stringify(entries)); }catch(e){} }
 function loadCache(){ try{ entries = JSON.parse(localStorage.getItem(lsKey()) || '[]'); }catch(e){ entries = []; } }
 
@@ -258,6 +380,8 @@ async function pull(){
     var cloud = (rows && rows.length && rows[0].data && rows[0].data.entries) ? rows[0].data.entries : [];
     var ctomb = (rows && rows.length && rows[0].data && rows[0].data.tomb) ? rows[0].data.tomb : [];
     ctomb.forEach(function(id){ if(tomb.indexOf(id) < 0) tomb.push(id); });
+    var cholds = (rows && rows.length && rows[0].data && rows[0].data.holds) ? rows[0].data.holds : null;
+    if(cholds) holds = cholds;
     try{ localStorage.setItem(lsTombKey(), JSON.stringify(tomb.slice(-300))); }catch(e){}
     inspStamp = {row: rowId(), ts: (rows && rows.length && rows[0].data && typeof rows[0].data._ts === 'number') ? rows[0].data._ts : null};
     var mg = mergeEntries(cloud, entries);
@@ -283,13 +407,15 @@ async function pushNow(){
       render();
     }
   }catch(e){}
+  try{ await externalizeInspPhotos(entries); }catch(e){}
+  try{ await syncPhotoHolds(); }catch(e){}
   var inspStampOut = Date.now();
   var clean = entries.map(function(e){ var c = Object.assign({}, e); delete c._dirty; return c; });
   try{
     var res = await fetch(SB_URL + '/rest/v1/app_records', {
       method: 'POST',
       headers: Object.assign(sbHeaders(true), {'Prefer': 'resolution=merge-duplicates'}),
-      body: JSON.stringify({id: rowId(), app: 'daily-inspections', data: {entries: clean, tomb: tomb.slice(-300), _ts: inspStampOut}})
+      body: JSON.stringify({id: rowId(), app: 'daily-inspections', data: {entries: clean, tomb: tomb.slice(-300), _ts: inspStampOut, holds: holds}})
     });
     if(res.ok){
       inspStamp = {row: rowId(), ts: inspStampOut};
@@ -343,10 +469,10 @@ function render(){
     + '<div class="stat"><b style="font-size:16px;padding-top:5px;">' + esc(topCat) + '</b><span>Top category</span></div>';
   var box = document.getElementById('list');
   if(!list.length){
-    box.innerHTML = '<div class="empty">' + (q ? 'No entries match your search.' : 'No entries yet for ' + MONTHS[curM] + ' ' + curY + '. Tap <b>+ Add Entry</b> to log the day\'s work.') + '</div>';
+    box.innerHTML = holdsCardHtml() + '<div class="empty">' + (q ? 'No entries match your search.' : 'No entries yet for ' + MONTHS[curM] + ' ' + curY + '. Tap <b>+ Add Entry</b> to log the day\'s work.') + '</div>';
     return;
   }
-  var h = '', lastDay = '';
+  var h = holdsCardHtml(), lastDay = '';
   list.forEach(function(e){
     if(e.date !== lastDay){ lastDay = e.date; h += '<div class="dayhead">' + esc(fmtDate(e.date)) + '</div>'; }
     h += '<div class="entry">'
@@ -357,8 +483,8 @@ function render(){
       + (e.equip ? '<span class="equip">&#128247; ' + esc(e.equip) + '</span>' : '')
       + '</div>'
       + (e.notes ? '<div class="notes">' + esc(e.notes) + '</div>' : '')
-      + (e.file && e.file.data ? inspFileHtml(e.file) : '')
-      + (e.penImg ? '<div style="margin-top:8px;"><span style="font-size:12.5px;font-weight:800;color:#1a365d;">\u270F\uFE0F PEN NOTE</span><img src="' + e.penImg + '" alt="Pen note" style="max-width:100%;border:1px solid #cbd5e0;border-radius:8px;display:block;margin-top:4px;"><button type="button" onclick="emailPenNote(\'' + e.id + '\')" style="margin-top:6px;padding:8px 14px;background:#d4af37;color:#12263f;border:none;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;">\uD83D\uDCE7 Email note</button></div>' : '')
+      + inspEntryFileHtml(e)
+      + (e.penImg ? '<div style="margin-top:8px;"><span style="font-size:12.5px;font-weight:800;color:#1a365d;">\u270F\uFE0F PEN NOTE</span><img ' + penImgAttr(e.penImg) + ' alt="Pen note" style="max-width:100%;border:1px solid #cbd5e0;border-radius:8px;display:block;margin-top:4px;"><button type="button" onclick="emailPenNote(\'' + e.id + '\')" style="margin-top:6px;padding:8px 14px;background:#d4af37;color:#12263f;border:none;border-radius:8px;font-size:13.5px;font-weight:800;cursor:pointer;">\uD83D\uDCE7 Email note</button></div>' : '')
       + likeBarHtml(e)
       + commentsHtml(e)
       + '<div class="acts"><button onclick="openForm(\'' + e.id + '\')">&#9998; Edit</button>'
@@ -542,7 +668,9 @@ async function emailPenNote(id){
   if(!e || !e.penImg) return;
   var subj = 'Pen note \u2014 ' + (e.date || '') + ' \u00B7 ' + (e.hotel || '') + ' \u00B7 ' + (e.inspector || '');
   try{
-    var blob = await (await fetch(e.penImg)).blob();
+    var penSrc = isPhotoRef(e.penImg) ? await photoGet(e.penImg) : e.penImg;
+    if(!penSrc) return;
+    var blob = await (await fetch(penSrc)).blob();
     var file = new File([blob], 'pen-note.jpg', {type: 'image/jpeg'});
     if(navigator.canShare && navigator.canShare({files: [file]})){
       await navigator.share({files: [file], title: subj});
@@ -562,14 +690,16 @@ var pendingPen = null;
 function inspFileHtml(f){
   if(!f || !f.data) return '';
   if((f.type || '').indexOf('image/') === 0){
-    return '<a href="' + f.data + '" download="' + esc(f.name || 'photo') + '"><img src="' + f.data + '" alt="" style="max-width:100%;max-height:240px;border-radius:8px;display:block;margin-top:6px;"></a>';
+    return '<a ' + fileLinkAttr(f) + ' download="' + esc(f.name || 'photo') + '"><img ' + fileImgAttr(f) + ' alt="" style="max-width:100%;max-height:240px;border-radius:8px;display:block;margin-top:6px;"></a>';
   }
-  return '<div style="margin-top:6px;"><a href="' + f.data + '" download="' + esc(f.name || 'file') + '" style="color:#2b6cb0;font-weight:700;">&#128196; ' + esc(f.name || 'File') + ' &#11015;&#65038;</a></div>';
+  return '<div style="margin-top:6px;"><a ' + fileLinkAttr(f) + ' download="' + esc(f.name || 'file') + '" style="color:#2b6cb0;font-weight:700;">&#128196; ' + esc(f.name || 'File') + ' &#11015;&#65038;</a></div>';
 }
 function inspFileDispHtml(e){
   if(pendingAttach === 'REMOVE') return '<span style="color:#9b2c2c;">Attachment will be removed when you save.</span>';
   if(pendingAttach) return '&#128206; ' + esc(pendingAttach.name || 'File') + ' <span style="color:#718096;">(new \u2014 will save with the entry)</span>';
   if(e && e.file && e.file.data) return '&#128206; ' + esc(e.file.name || 'File') + ' <button type="button" onclick="inspFileRemove()" style="margin-left:8px;">Remove</button>';
+  var lf9 = e ? localHeldFile(e.id) : null;
+  if(lf9) return '&#128206; ' + esc(lf9.name || 'File') + ' <button type="button" onclick="inspFileRemove()" style="margin-left:8px;">Remove</button>';
   return '<span style="color:#718096;">No file attached</span>';
 }
 function inspFileRemove(){
@@ -687,8 +817,8 @@ function saveEntry(){
     toast('Entry saved');
   }
   var savedE = editingId ? entries.find(function(x){ return x.id === editingId; }) : data;
-  if(pendingAttach === 'REMOVE'){ if(savedE) savedE.file = null; }
-  else if(pendingAttach){ if(savedE) savedE.file = pendingAttach; }
+  if(pendingAttach === 'REMOVE'){ if(savedE) savedE.file = null; if(me === 'Alexander Duff' && savedE){ clearLocalFile(savedE.id); markUnheld(savedE.id); } }
+  else if(pendingAttach){ if(me === 'Alexander Duff' && savedE){ stashLocalFile(savedE.id, pendingAttach); } else if(savedE) savedE.file = pendingAttach; }
   if(pendingPen === 'REMOVE'){ if(savedE) savedE.penImg = null; }
   else if(pendingPen){ if(savedE) savedE.penImg = pendingPen; }
   /* if the entry belongs to another month, jump to it */
@@ -778,7 +908,7 @@ var XHEAD = ['Date', 'Inspector', 'Category', 'Hotel', 'Location / Area', 'Equip
 function formInner(){
   var list = entries.slice().sort(function(a, b){ return (a.date + a.id).localeCompare(b.date + b.id); });
   var rows = list.map(function(e){
-    return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.inspector || '') + '</td><td>' + esc(e.category || '') + '</td><td>' + esc(e.hotel || '') + '</td><td>' + esc(e.area || '') + '</td><td>' + esc(e.equip || '') + '</td><td>' + esc(e.notes || '') + (e.penImg ? '<br><img src="' + e.penImg + '" style="max-width:300px;margin-top:4px;">' : '') + '</td></tr>';
+    return '<tr><td>' + esc(e.date) + '</td><td>' + esc(e.inspector || '') + '</td><td>' + esc(e.category || '') + '</td><td>' + esc(e.hotel || '') + '</td><td>' + esc(e.area || '') + '</td><td>' + esc(e.equip || '') + '</td><td>' + esc(e.notes || '') + (e.penImg ? '<br><img ' + penImgAttr(e.penImg) + ' style="max-width:300px;margin-top:4px;">' : '') + '</td></tr>';
   }).join('');
   return '<h1>Security Property Daily Inspection — ' + MONTHS[curM] + ' ' + curY + '</h1>'
     + '<h2>Loews Hotels Security Orlando &bull; ' + list.length + ' entries &bull; Produced ' + new Date().toLocaleString() + ' by ' + esc(me || '') + '</h2>'
