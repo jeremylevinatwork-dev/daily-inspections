@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="insp-20261110-1152">
+<html lang="en" data-build="insp-20261110-1526">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -86,6 +86,17 @@ main{flex:1 1 auto;overflow-y:auto;min-height:0;width:100%;max-width:860px;margi
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:10px;font-size:15.5px;font-weight:700;z-index:99;box-shadow:0 8px 22px rgba(0,0,0,.3);display:none;max-width:92vw;text-align:center;}
 /* print */
 #print-area{display:none;}
+#sheetview{display:none;position:fixed;inset:0;background:#fff;z-index:3000;overflow:auto;-webkit-overflow-scrolling:touch;}
+#sheetview.open{display:block;}
+#sheetview .svbar{position:sticky;top:0;background:#10254a;padding:10px 12px;display:flex;gap:8px;align-items:center;z-index:2;}
+#sheetview .svbar button{padding:9px 14px;border-radius:8px;border:none;font-weight:800;cursor:pointer;font-size:14px;}
+#sheetview .svbody{padding:14px;}
+#sheetview h1{font-size:20px;color:#1a365d;margin:0 0 2px;}
+#sheetview h2{font-size:13px;color:#555;font-weight:normal;margin:0 0 12px;}
+#sheetview .svscroll{overflow-x:auto;}
+#sheetview table{border-collapse:collapse;font-size:12.5px;min-width:760px;}
+#sheetview th{background:#1a365d;color:#fff;text-align:left;padding:6px;border:1px solid #cbd5e0;}
+#sheetview td{padding:6px;border:1px solid #cbd5e0;vertical-align:top;}
 @media print{
   @page{margin:0.6in;}
   body{display:block !important;height:auto !important;overflow:visible !important;background:#fff !important;}
@@ -134,6 +145,7 @@ main{flex:1 1 auto;overflow-y:auto;min-height:0;width:100%;max-width:860px;margi
 </main>
 <div id="gate"><div>Please log in through the main <b>Loews Hotels Security Orlando</b> app first,<br>then open the Inspect tab.<div id="ssodiag" style="margin-top:14px;font-size:12.5px;color:#8a94a6;line-height:1.5"></div><button id="gatein" style="display:none;margin:18px auto 0;background:#c9a227;color:#0f2440;border:none;border-radius:10px;padding:11px 22px;font-size:15px;font-weight:800;cursor:pointer;" onclick="inspSignIn()">Sign back in</button></div></div>
 <div id="print-area"></div>
+<div id="sheetview"></div>
 <div id="syncbadge">Loading…</div>
 <div class="toast" id="toast"></div>
 
@@ -1002,6 +1014,7 @@ async function downloadDoc(kind){
   if(kind === 'xls'){
     toast('Building the full Excel form…');
     var list = xrFilter(await fetchAllEntries());
+    if(isIOS()){ showSheetView(list, xrLabel()); return; }
     var rk = xrKey(), rl = xrLabel();
     var fname = 'inspection-form-' + (rk || 'full-log') + '.xlsx';
     var hp = pickExcelFile('form' + (rk ? '-' + rk : ''), fname);
@@ -1036,6 +1049,7 @@ async function downloadFullLog(){
   var hp = pickExcelFile('fulllog' + (rk2 ? '-' + rk2 : ''), fname2);
   try{
     var all = xrFilter(await fetchAllEntries());
+    if(isIOS()){ showSheetView(all, rl2); return; }
     var rows = [{n:1, cells:XHEAD, hdr:true}];
     all.forEach(function(e, i){ rows.push({n:2 + i, cells:entryCells(e)}); });
     await saveExcelBlob(makeXlsx(rows), hp, fname2, rl2 ? ('Full log saved — ' + rl2 + ', ' + all.length + ' entries') : ('Full log saved — ' + all.length + ' entries, the whole log in one file'));
@@ -1080,26 +1094,29 @@ async function sendEmailReport(){
   var to = toEl ? toEl.value.trim() : '';
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)){ toast('Enter a valid email address'); return; }
   var list = inspMailList || xrFilter(await fetchAllEntries());
-  if(!list.length){ toast('No entries in that range to email'); return; }
+  if(await deliverReport(to, list)) closeForm();
+}
+async function deliverReport(to, list){
+  if(!list.length){ toast('No entries in that range to email'); return false; }
   var rl = xrLabel();
   var subj = 'Inspection Report \u2014 ' + (rl || 'Full log') + ' \u2014 ' + list.length + ' entries \u2014 ' + new Date().toLocaleString();
   var body = inspMailBody(list, rl);
-  if(body.length > 45000){ toast('That report is too big to email (' + list.length + ' entries) \u2014 narrow the Excel range and try again'); return; }
+  if(body.length > 45000){ toast('That report is too big to email (' + list.length + ' entries) \u2014 narrow the Excel range and try again'); return false; }
   try{ localStorage.setItem('inspMailTo', to); }catch(e){}
   if(me === 'Alexander Duff'){
     mailHolds.push({to: to, subject: subj, body: body, by: me, ts: Date.now()});
-    saveCache(); schedulePush(); closeForm();
+    saveCache(); schedulePush();
     toast('Report emailed to ' + to + ' \u2713');
-    return;
+    return true;
   }
   toast('Sending report\u2026');
   try{
     var res = await fetch('https://api.emailjs.com/api/v1.0/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ service_id: EJ_SERVICE_I, template_id: EJ_TEMPLATE_HTML_I, user_id: EJ_KEY_I, template_params: { to_email: to, subject: subj, body: body } }) });
     if(!res.ok) throw new Error('HTTP ' + res.status);
-    closeForm();
     toast('Report emailed to ' + to + ' \u2713');
-  }catch(e){ toast('Email failed \u2014 check connection and try again'); }
+    return true;
+  }catch(e){ toast('Email failed \u2014 check connection and try again'); return false; }
 }
 function mailHoldsCardHtml(){
   if(me !== 'Jeremy Levin' || !mailHolds.length) return '';
@@ -1124,6 +1141,46 @@ async function approveMailHold(i){
   }catch(e){ toast('Send failed \u2014 try again'); }
 }
 function dismissMailHold(i){ mailHolds.splice(i, 1); saveCache(); schedulePush(); render(); }
+
+/* ---------- in-app report (sheet) view for phones: Email + Print right on the report ---------- */
+var inspSheetList = null, inspSheetRl = '';
+function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+function sheetSub(list, rl){ return 'Loews Hotels Security Orlando \u2022 ' + (rl ? ('Entries ' + rl) : 'All entries accumulated') + ' \u2022 ' + list.length + ' entries \u2022 Produced ' + new Date().toLocaleString() + ' by ' + (me || ''); }
+function sheetTableHtml(list){
+  var h = '<table><tr>' + XHEAD.map(function(x){ return '<th>' + esc(x) + '</th>'; }).join('') + '</tr>';
+  list.forEach(function(e, i){
+    h += '<tr>' + entryCells(e).map(function(c){ return '<td' + (i % 2 ? ' style="background:#f7fafc;"' : '') + '>' + esc(c) + '</td>'; }).join('') + '</tr>';
+  });
+  return h + '</table>';
+}
+function sheetPrintHtml(list, rl){
+  return '<h1>Security Property Daily Inspection Log</h1><h2>' + esc(sheetSub(list, rl)) + '</h2>' + sheetTableHtml(list);
+}
+function showSheetView(list, rl){
+  inspSheetList = list; inspSheetRl = rl || '';
+  var sv = document.getElementById('sheetview');
+  sv.innerHTML = '<div class="svbar">'
+    + '<button type="button" onclick="closeSheetView()" style="background:#e2e8f0;color:#10254a;">&#8592; Back</button>'
+    + '<button type="button" onclick="emailSheetView()" style="background:#c9a227;color:#10254a;">&#9993; Email this report</button>'
+    + '<button type="button" onclick="printSheetView()" style="background:#ffffff;color:#10254a;">&#128424; Print</button>'
+    + '</div>'
+    + '<div class="svbody"><h1>Security Property Daily Inspection Log</h1><h2>' + esc(sheetSub(list, inspSheetRl)) + '</h2>'
+    + '<div class="svscroll">' + sheetTableHtml(list) + '</div></div>';
+  sv.classList.add('open');
+  sv.scrollTop = 0;
+  document.getElementById('print-area').innerHTML = sheetPrintHtml(list, inspSheetRl);
+}
+function closeSheetView(){ document.getElementById('sheetview').classList.remove('open'); }
+function printSheetView(){
+  if(inspSheetList) document.getElementById('print-area').innerHTML = sheetPrintHtml(inspSheetList, inspSheetRl);
+  window.print();
+}
+async function emailSheetView(){
+  var to = ''; try{ to = localStorage.getItem('inspMailTo') || ''; }catch(e){}
+  if(!to) to = 'Jeremy.levin@loewshotels.com';
+  await deliverReport(to, inspSheetList || []);
+}
+
 
 /* ---------- backup ---------- */
 async function backupAll(){
