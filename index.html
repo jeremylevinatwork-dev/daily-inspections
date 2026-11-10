@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-build="insp-20261110-1526">
+<html lang="en" data-build="insp-20261110-1612">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -1061,25 +1061,37 @@ async function downloadFullLog(){
 /* ---------- email the inspection report (spreadsheet-style, like the Excel) ---------- */
 var EJ_KEY_I = "YCkjMTWq2fP_OHNis", EJ_SERVICE_I = "service_ylmlcxh", EJ_TEMPLATE_HTML_I = "template_8171jco";
 var inspMailList = null;
-function inspMailBody(list, rl){
+var INSP_MAIL_PART_MAX = 40000;
+function inspMailHead(list, rl, part, parts){
   var sub = 'Loews Hotels Security Orlando \u2022 ' + (rl ? ('Entries ' + rl) : 'All entries accumulated') + ' \u2022 ' + list.length + ' entries \u2022 Produced ' + new Date().toLocaleString() + ' by ' + (me || '');
   var h = '<div style="font-family:Arial,sans-serif;color:#1a202c;">'
+    + '<style>.ixl{border-collapse:collapse;font-size:12.5px;font-family:Arial,sans-serif}.ixl th{background:#1a365d;color:#fff;text-align:left;padding:6px;border:1px solid #cbd5e0}.ixl td{padding:6px;border:1px solid #cbd5e0;vertical-align:top}</style>'
     + '<div style="font-size:17px;font-weight:800;color:#1a365d;">Security Property Daily Inspection Log</div>'
-    + '<div style="font-size:12.5px;color:#4a5568;margin:3px 0 10px;">' + esc(sub) + '</div>'
-    + '<table cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;">'
-    + '<tr>' + XHEAD.map(function(x){ return '<th style="background:#1a365d;color:#fff;text-align:left;border:1px solid #cbd5e0;">' + esc(x) + '</th>'; }).join('') + '</tr>';
-  list.forEach(function(e, i){
-    var cells = entryCells(e);
-    h += '<tr>' + cells.map(function(c){ return '<td style="border:1px solid #cbd5e0;' + (i % 2 ? 'background:#f7fafc;' : '') + 'vertical-align:top;">' + esc(c) + '</td>'; }).join('') + '</tr>';
-  });
-  return h + '</table></div>';
+    + '<div style="font-size:12.5px;color:#4a5568;margin:3px 0 4px;">' + esc(sub) + '</div>';
+  if(parts > 1) h += '<div style="font-size:12.5px;color:#4a5568;margin:0 0 10px;">Part ' + part + ' of ' + parts + '</div>';
+  return h + '<table class="ixl"><tr>' + XHEAD.map(function(x){ return '<th>' + esc(x) + '</th>'; }).join('') + '</tr>';
 }
+function inspMailRow(e){ return '<tr>' + entryCells(e).map(function(c){ return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }
+function inspMailParts(list, rl){
+  var probe = inspMailHead(list, rl, 1, 1), tail = '</table></div>';
+  var room = INSP_MAIL_PART_MAX - probe.length - tail.length;
+  var chunks = [], cur = '', curlen = 0;
+  list.forEach(function(e){
+    var r = inspMailRow(e);
+    if(curlen > 0 && curlen + r.length > room){ chunks.push(cur); cur = ''; curlen = 0; }
+    cur += r; curlen += r.length;
+  });
+  if(cur || !chunks.length) chunks.push(cur);
+  var n = chunks.length;
+  return chunks.map(function(c, i){ return inspMailHead(list, rl, i + 1, n) + c + tail; });
+}
+function inspMailBody(list, rl){ return inspMailParts(list, rl)[0]; }
 async function emailReportCard(){
   var fc = document.getElementById('formcard');
   var to = ''; try{ to = localStorage.getItem('inspMailTo') || ''; }catch(e){}
   if(!to) to = 'Jeremy.levin@loewshotels.com';
   fc.innerHTML = '<h3>&#9993; Email the inspection report</h3>'
-    + '<div style="font-size:13.5px;color:#4a5568;margin-bottom:8px;">Sends the log as a spreadsheet-style table \u2014 the same entries the Excel button exports, using the Excel range above.</div>'
+    + '<div style="font-size:13.5px;color:#4a5568;margin-bottom:8px;">Sends the log as a spreadsheet-style table \u2014 the same entries the Excel button exports, using the Excel range above. Large logs are sent in parts.</div>'
     + '<label style="font-weight:700;">Send to</label><input id="im-to" type="email" value="' + esc(to) + '" style="width:100%;padding:9px;border:1.5px solid #cbd5e0;border-radius:8px;margin:4px 0 10px;">'
     + '<div id="im-info" style="font-size:13.5px;color:#2d3748;margin-bottom:10px;">Counting entries\u2026</div>'
     + '<button type="button" onclick="sendEmailReport()" style="padding:10px 18px;background:#1a365d;color:#fff;border:none;border-radius:8px;font-weight:800;cursor:pointer;">Send report</button> '
@@ -1100,21 +1112,22 @@ async function deliverReport(to, list){
   if(!list.length){ toast('No entries in that range to email'); return false; }
   var rl = xrLabel();
   var subj = 'Inspection Report \u2014 ' + (rl || 'Full log') + ' \u2014 ' + list.length + ' entries \u2014 ' + new Date().toLocaleString();
-  var body = inspMailBody(list, rl);
-  if(body.length > 45000){ toast('That report is too big to email (' + list.length + ' entries) \u2014 narrow the Excel range and try again'); return false; }
+  var parts = inspMailParts(list, rl);
   try{ localStorage.setItem('inspMailTo', to); }catch(e){}
   if(me === 'Alexander Duff'){
-    mailHolds.push({to: to, subject: subj, body: body, by: me, ts: Date.now()});
+    mailHolds.push({to: to, subject: subj, bodies: parts, by: me, ts: Date.now()});
     saveCache(); schedulePush();
     toast('Report emailed to ' + to + ' \u2713');
     return true;
   }
-  toast('Sending report\u2026');
+  toast(parts.length > 1 ? ('Sending report in ' + parts.length + ' parts\u2026') : 'Sending report\u2026');
   try{
-    var res = await fetch('https://api.emailjs.com/api/v1.0/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service_id: EJ_SERVICE_I, template_id: EJ_TEMPLATE_HTML_I, user_id: EJ_KEY_I, template_params: { to_email: to, subject: subj, body: body } }) });
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    toast('Report emailed to ' + to + ' \u2713');
+    for(var i = 0; i < parts.length; i++){
+      var res = await fetch('https://api.emailjs.com/api/v1.0/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_id: EJ_SERVICE_I, template_id: EJ_TEMPLATE_HTML_I, user_id: EJ_KEY_I, template_params: { to_email: to, subject: parts.length > 1 ? (subj + ' \u2014 Part ' + (i + 1) + ' of ' + parts.length) : subj, body: parts[i] } }) });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+    }
+    toast('Report emailed to ' + to + ' \u2713' + (parts.length > 1 ? (' (' + parts.length + ' parts)') : ''));
     return true;
   }catch(e){ toast('Email failed \u2014 check connection and try again'); return false; }
 }
@@ -1132,10 +1145,13 @@ function mailHoldsCardHtml(){
 }
 async function approveMailHold(i){
   var mh = mailHolds[i]; if(!mh) return;
+  var bodies = (mh.bodies && mh.bodies.length) ? mh.bodies : [mh.body];
   try{
-    var res = await fetch('https://api.emailjs.com/api/v1.0/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service_id: EJ_SERVICE_I, template_id: EJ_TEMPLATE_HTML_I, user_id: EJ_KEY_I, template_params: { to_email: mh.to, subject: mh.subject, body: mh.body } }) });
-    if(!res.ok) throw new Error('HTTP ' + res.status);
+    for(var j = 0; j < bodies.length; j++){
+      var res = await fetch('https://api.emailjs.com/api/v1.0/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_id: EJ_SERVICE_I, template_id: EJ_TEMPLATE_HTML_I, user_id: EJ_KEY_I, template_params: { to_email: mh.to, subject: bodies.length > 1 ? (mh.subject + ' \u2014 Part ' + (j + 1) + ' of ' + bodies.length) : mh.subject, body: bodies[j] } }) });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+    }
     mailHolds.splice(i, 1); saveCache(); schedulePush(); render();
     toast('Report emailed to ' + mh.to + ' \u2713');
   }catch(e){ toast('Send failed \u2014 try again'); }
